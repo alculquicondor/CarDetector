@@ -27,7 +27,7 @@ std::vector<cv::Point2i> Detector::getInterestPoints(const cv::Mat &src, bool is
     }
 
     // detecting corners
-    cv::goodFeaturesToTrack(src, corners, 10, 0.5, distance, mask, blockSize, true, k);
+    cv::goodFeaturesToTrack(src, corners, 10, 0.55, distance, mask, blockSize, true, k);
 
     return corners;
 }
@@ -151,7 +151,7 @@ std::vector<int> Detector::buildFeatureVector(const SampleDescriptor &obj) {
             double dist = std::hypot(dx, dy), angle = std::atan2(dy, dx);
             if (angle < 0)
                 angle += pi;
-            int did = int(dist / 17), aid = int(angle * 3 / pi);
+            int did = int(dist / 18), aid = int(angle * 3 / pi);
             int p1 = obj.patches[i].id, p2 = obj.patches[j].id;
             assert(did < 5);
             assert(aid < 3);
