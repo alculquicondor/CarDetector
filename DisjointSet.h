@@ -18,8 +18,16 @@ public:
     int find(int x);
     void join(int x, int y);
 
-    const std::vector<int> &getSet(int x) const {
-        return set[x];
+    const std::vector<int> &getSet(int x) {
+        return set[find(x)];
+    }
+
+    const std::vector<std::vector<int>> &getSets() {
+        return set;
+    }
+
+    const std::vector<int> &getParent() {
+        return parent;
     }
 };
 

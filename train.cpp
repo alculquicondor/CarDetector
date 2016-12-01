@@ -33,5 +33,7 @@ int main(int argc, char *argv[]) {
         detector.addNegative(i, img);
     }
 
+    detector.groupPatches();
+
     return 0;
 }

@@ -2,10 +2,14 @@
 // Created by alculquicondor on 11/30/16.
 //
 
-#include <cstddef>
 #include "DisjointSet.h"
 
+
 DisjointSet::DisjointSet(std::size_t size) : parent(size), set(size) {
+    for (int i = 0; i < size; ++i) {
+        parent[i] = i;
+        set[i].push_back(i);
+    }
 }
 
 
