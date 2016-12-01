@@ -14,6 +14,7 @@ endif()
 set(SOURCE_FILES train.cpp
         Detector.cpp Detector.h
         SampleDescriptor.h
-        DisjointSet.cpp DisjointSet.h)
+        DisjointSet.cpp DisjointSet.h
+        OPF.cpp OPF.h)
 add_executable(cd_train ${SOURCE_FILES})
 target_link_libraries(cd_train ${OpenCV_LIBS})

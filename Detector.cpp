@@ -4,6 +4,9 @@
 
 #include "Detector.h"
 
+const int Detector::minimumPoints = 5;
+
+
 Detector::Detector() : carMask(cv::Mat::zeros(40, 100, CV_8UC1)) {
     cv::ellipse(carMask, {50, 20}, {43, 13}, 0, 0, 360, {255}, -1);
 }
@@ -40,7 +43,7 @@ void Detector::savePatch(const cv::Mat &patch) {
 void Detector::addPositive(int id, cv::Mat src) {
     auto points = getInterestPoints(src, true);
 
-    if (points.size() > 4) {
+    if (points.size() >= minimumPoints) {
         SampleDescriptor sample;
         sample.id = id;
         for (auto p : points) {
@@ -56,7 +59,7 @@ void Detector::addPositive(int id, cv::Mat src) {
 void Detector::addNegative(int id, cv::Mat src) {
     auto points = getInterestPoints(src, false);
 
-    if (points.size() > 4) {
+    if (points.size() >= minimumPoints) {
         SampleDescriptor sample;
         sample.id = id;
         for (auto p : points) {
@@ -89,7 +92,7 @@ void Detector::groupPatches() {
         }
     }
 
-    double minDist = 0.88;
+    double minDist = 0.81;
     std::sort(edges.rbegin(), edges.rend());
 
     DisjointSet ds(patches.size());
@@ -139,7 +142,7 @@ void Detector::groupPatches() {
 
 std::vector<int> Detector::buildFeatureVector(const SampleDescriptor &obj) {
     static const double pi = 3.14159265359;
-    std::vector<int> patches, relations, vector;
+    std::vector<int> patches, relations;
     for (int i = 0; i < obj.patches.size(); ++i) {
         patches.push_back(obj.patches[i].id);
         for (int j = i + 1; j < obj.patches.size(); ++j) {
@@ -148,40 +151,20 @@ std::vector<int> Detector::buildFeatureVector(const SampleDescriptor &obj) {
             double dist = std::hypot(dx, dy), angle = std::atan2(dy, dx);
             if (angle < 0)
                 angle += pi;
-            int did = int(dist / 15), aid = int(angle * 4 / pi);
+            int did = int(dist / 17), aid = int(angle * 3 / pi);
             int p1 = obj.patches[i].id, p2 = obj.patches[j].id;
-            assert(did < 7);
-            assert(aid < 4);
+            assert(did < 5);
+            assert(aid < 3);
             if (p2 > p1)
                 std::swap(p1, p2);
-            relations.push_back(int(p1 * patchGroup.size() + p2) * 28 + (did * 4) + aid);
+            relations.push_back(int(p1 * patchGroup.size() + p2) * 15 + (did * 3) + aid);
         }
     }
     std::sort(patches.begin(), patches.end());
     std::sort(relations.begin(), relations.end());
-    const int patchRep = 4;
-    const int relRep = 3;
-    for (int x : patches) {
-        int r = patchRep * x;
-        assert(vector.empty() or vector.back() != r + patchRep - 1);
-        if (vector.empty())
-            vector.push_back(r);
-        else
-            vector.push_back(vector.back() >= r and vector.back() < r + patchRep ? vector.back() + 1 : r);
-    }
-    for (int x : relations) {
-        int r = relRep * x + (int) patchGroup.size() * patchRep;
-        assert(vector.empty() or vector.back() != r + relRep - 1);
-        if (vector.empty())
-            vector.push_back(r);
-        else
-            vector.push_back(vector.back() >= r and vector.back() < r + relRep ? vector.back() + 1 : r);
-    }
-    /*
-    for (int x : vector)
-        std::cout << ' ' << x;
-    std::cout << std::endl;
-     */
+    std::vector<int> vector = patches;
+    for (auto x : relations)
+        vector.push_back(x + (int)patchGroup.size());
     return vector;
 }
 
@@ -191,4 +174,11 @@ void Detector::buildFeatureVectors() {
         featVector.push_back({1, buildFeatureVector(obj)});
     for (auto &obj : negative)
         featVector.push_back({0, buildFeatureVector(obj)});
+    std::cout << featVector.size() << std::endl;
+}
+
+
+void Detector::trainClassifier() {
+    opf = OPF(featVector);
+    opf.train();
 }
