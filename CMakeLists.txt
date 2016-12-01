@@ -7,6 +7,7 @@ find_package(OpenCV REQUIRED)
 
 set(SOURCE_FILES train.cpp
         Detector.cpp Detector.h
-        SampleDescriptor.h)
+        SampleDescriptor.h
+        DisjointSet.cpp DisjointSet.h)
 add_executable(cd_train ${SOURCE_FILES})
 target_link_libraries(cd_train ${OpenCV_LIBS})
