@@ -5,7 +5,8 @@ set(CMAKE_CXX_STANDARD 11)
 
 find_package(OpenCV REQUIRED)
 
-set(SOURCE_FILES main.cpp
-        Detector.cpp Detector.h)
-add_executable(car_detection ${SOURCE_FILES})
-target_link_libraries(car_detection ${OpenCV_LIBS})
+set(SOURCE_FILES train.cpp
+        Detector.cpp Detector.h
+        SampleDescriptor.h)
+add_executable(cd_train ${SOURCE_FILES})
+target_link_libraries(cd_train ${OpenCV_LIBS})
