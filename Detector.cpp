@@ -24,7 +24,7 @@ std::vector<cv::Point2i> Detector::getInterestPoints(const cv::Mat &src, bool is
     }
 
     // detecting corners
-    cv::goodFeaturesToTrack(src, corners, 10, 0.45, distance, mask, blockSize, true, k);
+    cv::goodFeaturesToTrack(src, corners, 10, 0.5, distance, mask, blockSize, true, k);
 
     return corners;
 }
@@ -56,7 +56,7 @@ void Detector::addPositive(int id, cv::Mat src) {
 void Detector::addNegative(int id, cv::Mat src) {
     auto points = getInterestPoints(src, false);
 
-    if (points.size() > 5) {
+    if (points.size() > 4) {
         SampleDescriptor sample;
         sample.id = id;
         for (auto p : points) {
@@ -89,7 +89,7 @@ void Detector::groupPatches() {
         }
     }
 
-    double minDist = 0.87;
+    double minDist = 0.88;
     std::sort(edges.rbegin(), edges.rend());
 
     DisjointSet ds(patches.size());
@@ -99,24 +99,23 @@ void Detector::groupPatches() {
             break;
         if (ds.find(i) != ds.find(j)) {
             double sim = 1;
-            auto s1 = ds.getSet(i), s2 = ds.getSet(j);
-            for (int x : s1)
-                for (int y : s2)
+            for (int x : ds.getSet(i))
+                for (int y : ds.getSet(j))
                     sim = std::min(sim, patchSim[x][y]);
             if (sim > minDist)
                 ds.join(i, j);
         }
     }
 
-    patchGroupElements.clear();
-    patchGroup.resize(patches.size());
+    patchGroup.clear();
+    std::vector<int> patchGroupMap(patches.size());
     int gid = 0;
     for (const auto &group: ds.getSets())
         if (not group.empty()) {
             cv::Mat patchesMat;
             int pid = 0;
             for (int x : group) {
-                patchGroup[x] = (int) patchGroupElements.size();
+                patchGroupMap[x] = (int) patchGroup.size();
                 if (pid > 0)
                     cv::hconcat(patchesMat, patches[x], patchesMat);
                 else
@@ -125,15 +124,71 @@ void Detector::groupPatches() {
             }
 
             std::stringstream filename;
-            filename << "patchGroups/" << patchGroupElements.size() << ".pgm";
+            filename << "patchGroups/" << patchGroup.size() << ".pgm";
             cv::imwrite(filename.str(), patchesMat);
 
-            patchGroupElements.push_back(group);
+            patchGroup.push_back(group);
         }
     for (auto &sample : positive)
         for (auto &x : sample.patches)
-            x.id = patchGroup[x.id];
+            x.id = patchGroupMap[x.id];
     for (auto &sample : negative)
         for (auto &x : sample.patches)
-            x.id = patchGroup[x.id];
+            x.id = patchGroupMap[x.id];
+}
+
+std::vector<int> Detector::buildFeatureVector(const SampleDescriptor &obj) {
+    static const double pi = 3.14159265359;
+    std::vector<int> patches, relations, vector;
+    for (int i = 0; i < obj.patches.size(); ++i) {
+        patches.push_back(obj.patches[i].id);
+        for (int j = i + 1; j < obj.patches.size(); ++j) {
+            int dx = obj.patches[j].x - obj.patches[i].x,
+                dy = obj.patches[j].y - obj.patches[i].y;
+            double dist = std::hypot(dx, dy), angle = std::atan2(dy, dx);
+            if (angle < 0)
+                angle += pi;
+            int did = int(dist / 15), aid = int(angle * 4 / pi);
+            int p1 = obj.patches[i].id, p2 = obj.patches[j].id;
+            assert(did < 7);
+            assert(aid < 4);
+            if (p2 > p1)
+                std::swap(p1, p2);
+            relations.push_back(int(p1 * patchGroup.size() + p2) * 28 + (did * 4) + aid);
+        }
+    }
+    std::sort(patches.begin(), patches.end());
+    std::sort(relations.begin(), relations.end());
+    const int patchRep = 4;
+    const int relRep = 3;
+    for (int x : patches) {
+        int r = patchRep * x;
+        assert(vector.empty() or vector.back() != r + patchRep - 1);
+        if (vector.empty())
+            vector.push_back(r);
+        else
+            vector.push_back(vector.back() >= r and vector.back() < r + patchRep ? vector.back() + 1 : r);
+    }
+    for (int x : relations) {
+        int r = relRep * x + (int) patchGroup.size() * patchRep;
+        assert(vector.empty() or vector.back() != r + relRep - 1);
+        if (vector.empty())
+            vector.push_back(r);
+        else
+            vector.push_back(vector.back() >= r and vector.back() < r + relRep ? vector.back() + 1 : r);
+    }
+    /*
+    for (int x : vector)
+        std::cout << ' ' << x;
+    std::cout << std::endl;
+     */
+    return vector;
+}
+
+void Detector::buildFeatureVectors() {
+    featVector.clear();
+    for (auto &obj : positive)
+        featVector.push_back({1, buildFeatureVector(obj)});
+    for (auto &obj : negative)
+        featVector.push_back({0, buildFeatureVector(obj)});
 }

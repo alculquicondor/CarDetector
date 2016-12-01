@@ -45,5 +45,11 @@ int main(int argc, char *argv[]) {
     duration = endPoint - startPoint;
     std::cout << "Patches clustered: " << (duration).count() << std::endl;
 
+    startPoint = std::chrono::system_clock::now();
+    detector.buildFeatureVectors();
+    endPoint = std::chrono::system_clock::now();
+    duration = endPoint - startPoint;
+    std::cout << "Feature Vectors obtained: " << (duration).count() << std::endl;
+
     return 0;
 }
