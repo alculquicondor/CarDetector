@@ -25,10 +25,6 @@ public:
     const std::vector<std::vector<int>> &getSets() {
         return set;
     }
-
-    const std::vector<int> &getParent() {
-        return parent;
-    }
 };
 
 

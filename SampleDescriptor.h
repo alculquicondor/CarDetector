@@ -10,8 +10,7 @@
 class SampleDescriptor {
 public:
     struct Patch {
-        std::size_t id;
-        int x, y;
+        int id, x, y;
     };
 
     int id;

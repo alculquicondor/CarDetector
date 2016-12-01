@@ -45,7 +45,7 @@ void Detector::addPositive(int id, cv::Mat src) {
         sample.id = id;
         for (auto p : points) {
             auto patch = src(cv::Rect(p.x - 6, p.y - 6, 13, 13));
-            sample.patches.push_back({patches.size(), p.x, p.y});
+            sample.patches.push_back({(int) patches.size(), p.x, p.y});
             savePatch(patch);
         }
         positive.push_back(sample);
@@ -61,7 +61,7 @@ void Detector::addNegative(int id, cv::Mat src) {
         sample.id = id;
         for (auto p : points) {
             auto patch = src(cv::Rect(p.x - 6, p.y - 6, 13, 13));
-            sample.patches.push_back({patches.size(), p.x, p.y});
+            sample.patches.push_back({(int) patches.size(), p.x, p.y});
             savePatch(patch);
         }
         negative.push_back(sample);
@@ -89,7 +89,7 @@ void Detector::groupPatches() {
         }
     }
 
-    double minDist = 0.85;
+    double minDist = 0.87;
     std::sort(edges.rbegin(), edges.rend());
 
     DisjointSet ds(patches.size());
@@ -108,12 +108,32 @@ void Detector::groupPatches() {
         }
     }
 
-    patchGroupElements = ds.getSets();
-    patchGroup = ds.getParent();
+    patchGroupElements.clear();
+    patchGroup.resize(patches.size());
+    int gid = 0;
+    for (const auto &group: ds.getSets())
+        if (not group.empty()) {
+            cv::Mat patchesMat;
+            int pid = 0;
+            for (int x : group) {
+                patchGroup[x] = (int) patchGroupElements.size();
+                if (pid > 0)
+                    cv::hconcat(patchesMat, patches[x], patchesMat);
+                else
+                    patchesMat = patches[x];
+                ++pid;
+            }
+
+            std::stringstream filename;
+            filename << "patchGroups/" << patchGroupElements.size() << ".pgm";
+            cv::imwrite(filename.str(), patchesMat);
+
+            patchGroupElements.push_back(group);
+        }
     for (auto &sample : positive)
         for (auto &x : sample.patches)
-            x.id = (std::size_t) ds.find((int) x.id);
+            x.id = patchGroup[x.id];
     for (auto &sample : negative)
         for (auto &x : sample.patches)
-            x.id = (std::size_t) ds.find((int) x.id);
+            x.id = patchGroup[x.id];
 }

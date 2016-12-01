@@ -1,5 +1,6 @@
 #include <iostream>
 #include <sstream>
+#include <chrono>
 
 #include <opencv2/highgui/highgui.hpp>
 
@@ -20,6 +21,8 @@ int main(int argc, char *argv[]) {
 
     Detector detector;
 
+    auto startPoint = std::chrono::system_clock::now();
+
     for (int i = 0; i < 550; ++i) {
         std::stringstream filename;
         filename << dataRoot << "/TrainImages/pos-" << i << ".pgm";
@@ -32,8 +35,15 @@ int main(int argc, char *argv[]) {
         auto img = cv::imread(filename.str(), CV_LOAD_IMAGE_GRAYSCALE);
         detector.addNegative(i, img);
     }
+    auto endPoint = std::chrono::system_clock::now();
+    std::chrono::duration<double> duration = endPoint - startPoint;
+    std::cout << "Patches obtained: " << (duration).count() << std::endl;
 
+    startPoint = std::chrono::system_clock::now();
     detector.groupPatches();
+    endPoint = std::chrono::system_clock::now();
+    duration = endPoint - startPoint;
+    std::cout << "Patches clustered: " << (duration).count() << std::endl;
 
     return 0;
 }
