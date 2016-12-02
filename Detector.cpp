@@ -5,7 +5,7 @@
 #include "Detector.h"
 
 const int Detector::minPoints = 5;
-const double Detector::minSimilarity = 0.82;
+const double Detector::minSimilarity = 0.8;
 
 
 Detector::Detector() : carMask(cv::Mat::zeros(40, 100, CV_8UC1)) {
@@ -69,7 +69,7 @@ void Detector::addNegative(int id, const cv::Mat &src) {
 
 double Detector::patchSimilarity(const cv::Mat &p1, const cv::Mat &p2) {
     cv::Mat extPatch;
-    cv::copyMakeBorder(p1, extPatch, 2, 2, 2, 2, cv::BORDER_REPLICATE);
+    cv::copyMakeBorder(p1, extPatch, 1, 1, 1, 1, cv::BORDER_REPLICATE);
     cv::Mat result;
     cv::matchTemplate(extPatch, p2, result, CV_TM_CCORR_NORMED);
     double maxCorr;
@@ -139,19 +139,22 @@ std::vector<int> Detector::buildFeatureVector(const SampleDescriptor &obj) {
     std::vector<int> patches, relations;
     for (int i = 0; i < obj.patches.size(); ++i) {
         patches.push_back(obj.patches[i].id);
-        for (int j = i + 1; j < obj.patches.size(); ++j) {
+        for (int j = 0; j < obj.patches.size(); ++j) {
+            if (i == j)
+                continue;
             int dx = obj.patches[j].x - obj.patches[i].x,
                 dy = obj.patches[j].y - obj.patches[i].y;
-            double dist = std::hypot(dx, dy), angle = std::atan2(dy, dx);
-            if (angle < 0)
-                angle += pi;
-            int did = int(dist / 18), aid = int(angle * 3 / pi);
+            if (dx < 0) {
+                dx = -dx;
+                dy = -dy;
+            }
+            double dist = std::hypot(dx, dy), angle = std::atan2(dy, dx) + .5 * pi;
+            assert(angle >= 0 and angle <= pi);
+            int did = int(dist / 17), aid = int(3 * angle / pi);
             int p1 = obj.patches[i].id, p2 = obj.patches[j].id;
-            assert(did < 5);
             assert(aid < 3);
-            if (p2 > p1)
-                std::swap(p1, p2);
-            relations.push_back(int(p1 * patchGroup.size() + p2) * 15 + (did * 3) + aid);
+            assert(did < 6);
+            relations.push_back(int(p1 * patchGroup.size() + p2) * 18 + (did * 4) + aid);
         }
     }
     std::sort(patches.begin(), patches.end());
@@ -168,7 +171,7 @@ void Detector::buildFeatureVectors() {
         featVector.push_back({1, buildFeatureVector(obj)});
     for (auto &obj : negative)
         featVector.push_back({0, buildFeatureVector(obj)});
-    std::cout << "Training samples:" << featVector.size() << std::endl;
+    std::cout << "Training samples: " << featVector.size() << std::endl;
 }
 
 
@@ -177,53 +180,59 @@ void Detector::trainClassifier() {
     opf.train();
 }
 
-cv::Mat Detector::detect(const cv::Mat &target) {
+cv::Mat Detector::detect(cv::Mat target) {
     cv::Mat output = target.clone();
-    int bestI = -1, bestJ = -1;
-    double bestCost = 1e300;
 
     cv::Mat mask = cv::Mat::zeros(target.size(), CV_8UC1);
     cv::rectangle(mask, {7, 7}, {target.cols - 7, target.rows - 7}, {255}, -1);
-    auto points = getInterestPoints(target, mask, 0.15, 40);
-    std::vector<SampleDescriptor::Patch> patches;
-    for (auto p : points) {
-        auto patch = target(cv::Rect(p.x - 6, p.y - 6, 13, 13));
-        double bestSim = 0;
-        int bestGroup = -1;
-        for (int g = 0; g < patchGroup.size(); ++g) {
-            double sim = 1;
-            for (int x : patchGroup[g])
-                sim = std::min(sim, patchSimilarity(patch, this->patches[x]));
-            if (sim > bestSim) {
-                bestSim = sim;
-                bestGroup = g;
+
+    while (true) {
+        int bestI = -1, bestJ = -1;
+        double bestCost = 1e300;
+        auto points = getInterestPoints(target, mask, 0.2, 40);
+        std::vector<SampleDescriptor::Patch> patches;
+        for (auto p : points) {
+            auto patch = target(cv::Rect(p.x - 6, p.y - 6, 13, 13));
+            double bestSim = 0;
+            int bestGroup = -1;
+            for (int g = 0; g < patchGroup.size(); ++g) {
+                double sim = 1;
+                for (int x : patchGroup[g])
+                    sim = std::min(sim, patchSimilarity(patch, this->patches[x]));
+                if (sim > bestSim) {
+                    bestSim = sim;
+                    bestGroup = g;
+                }
             }
+            if (bestSim > minSimilarity)
+                patches.push_back({bestGroup, p.x, p.y});
         }
-        if (bestSim > minSimilarity)
-            patches.push_back({bestGroup, p.x, p.y});
-    }
-    for (auto pt : patches)
-        cv::rectangle(output, {pt.x - 6, pt.y - 6}, {pt.x + 6, pt.y + 6}, {0});
-    for (int i = 0; i <= target.rows - carMask.rows; ++i) {
-        for (int j = 0; j <= target.cols - carMask.cols; ++j) {
-            SampleDescriptor sample{-1};
-            for (auto p : patches)
-                if (p.x > j + 6 and p.x < j + carMask.cols - 6 and
-                        p.y > i + 6 and p.y < i + carMask.rows - 6)
-                    sample.patches.push_back(p);
-            if (sample.patches.size() >= minPoints - 1) {
-                auto classification = opf.classify(buildFeatureVector(sample));
-                if (classification.first == 1 and classification.second < bestCost) {
-                    bestCost = classification.second;
-                    bestI = i;
-                    bestJ = j;
+        for (auto pt : patches)
+            cv::rectangle(output, {pt.x - 6, pt.y - 6}, {pt.x + 6, pt.y + 6}, {0});
+        for (int i = 0; i <= target.rows - carMask.rows; ++i) {
+            for (int j = 0; j <= target.cols - carMask.cols; ++j) {
+                SampleDescriptor sample{-1};
+                for (auto p : patches)
+                    if (p.x > j + 6 and p.x < j + carMask.cols - 6 and
+                            p.y > i + 6 and p.y < i + carMask.rows - 6)
+                        sample.patches.push_back(p);
+                if (sample.patches.size() >= minPoints - 1) {
+                    auto classification = opf.classify(buildFeatureVector(sample));
+                    if (classification.first == 1 and classification.second < bestCost) {
+                        bestCost = classification.second;
+                        bestI = i;
+                        bestJ = j;
+                    }
                 }
             }
         }
-    }
-    if (bestI != -1 and bestCost < 0.6) {
-        cv::rectangle(output, {bestJ, bestI}, {bestJ + carMask.cols, bestI + carMask.rows}, {255});
-        std::cout << bestCost << std::endl;
+        if (bestI != -1 and bestCost < 0.65) {
+            cv::rectangle(output, {bestJ, bestI}, {bestJ + carMask.cols, bestI + carMask.rows}, {255});
+            carMask.copyTo(target.rowRange(bestI, bestI + carMask.rows).colRange(bestJ, bestJ + carMask.cols));
+            std::cout << bestCost << std::endl;
+        } else {
+            break;
+        }
     }
     return output;
 }

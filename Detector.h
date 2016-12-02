@@ -32,7 +32,7 @@ private:
     OPF opf;
 
     std::vector<cv::Point2i> getInterestPoints(const cv::Mat &src, const cv::Mat &mask,
-                                               double quality=0.41, int limit=10);
+                                               double quality=0.36, int limit=10);
     void savePatch(const cv::Mat &patch);
 
     double patchSimilarity(const cv::Mat &p1, const cv::Mat &p2);
@@ -53,7 +53,7 @@ public:
     void buildFeatureVectors();
     void trainClassifier();
 
-    cv::Mat detect(const cv::Mat &target);
+    cv::Mat detect(cv::Mat target);
 };
 
 
