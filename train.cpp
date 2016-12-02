@@ -15,9 +15,8 @@ int main(int argc, char *argv[]) {
 
     std::string dataRoot(argv[1]);
 
-    const std::string srcWindow = "Source", dstWindow = "Destination";
-//    cv::namedWindow(srcWindow, CV_WINDOW_AUTOSIZE);
-//    cv::namedWindow(dstWindow, CV_WINDOW_AUTOSIZE);
+    const std::string detectWindow = "Detect";
+    cv::namedWindow(detectWindow, CV_WINDOW_AUTOSIZE);
 
     Detector detector;
 
@@ -56,6 +55,15 @@ int main(int argc, char *argv[]) {
     endPoint = std::chrono::system_clock::now();
     duration = endPoint - startPoint;
     std::cout << "Trained classifier: " << (duration).count() << std::endl;
+
+    for (int i = 0; i < 170; ++i) {
+        std::stringstream filename;
+        filename << dataRoot << "/TestImages/test-" << i << ".pgm";
+        auto img = cv::imread(filename.str(), CV_LOAD_IMAGE_GRAYSCALE);
+        auto output = detector.detect(img);
+        cv::imshow(detectWindow, output);
+        cv::waitKey(0);
+    }
 
     return 0;
 }

@@ -17,7 +17,8 @@
 
 class Detector {
 private:
-    static const int minimumPoints;
+    static const int minPoints;
+    static const double minSimilarity;
     cv::Mat carMask;
 
     std::vector<cv::Mat> patches;
@@ -30,20 +31,29 @@ private:
 
     OPF opf;
 
-    std::vector<cv::Point2i> getInterestPoints(const cv::Mat &src, bool isTrainCar);
+    std::vector<cv::Point2i> getInterestPoints(const cv::Mat &src, const cv::Mat &mask,
+                                               double quality=0.41, int limit=10);
     void savePatch(const cv::Mat &patch);
 
-    double patchSimilarity(int i, int j);
+    double patchSimilarity(const cv::Mat &p1, const cv::Mat &p2);
+
+    double patchSimilarity(int i, int j) {
+        return patchSimilarity(patches[i], patches[j]);
+    }
+
+
 
     std::vector<int> buildFeatureVector(const SampleDescriptor &obj);
 
 public:
     Detector();
-    void addPositive(int id, cv::Mat src);
-    void addNegative(int id, cv::Mat src);
+    void addPositive(int id, const cv::Mat &src);
+    void addNegative(int id, const cv::Mat &src);
     void groupPatches();
     void buildFeatureVectors();
     void trainClassifier();
+
+    cv::Mat detect(const cv::Mat &target);
 };
 
 

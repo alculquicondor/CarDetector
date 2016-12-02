@@ -15,6 +15,7 @@ void OPF::train() {
     getPrototypes();
     seen.assign(feature.size(), false);
     parent.assign(feature.size(), -1);
+    order.clear();
 
     int s = -1;
     for (int i = 0; i < feature.size(); ++i) {
@@ -22,12 +23,13 @@ void OPF::train() {
             cost[i] = 0;
             s = i;
         } else {
-            cost[i] = 1 << 30;
+            cost[i] = 1e300;
         }
     }
     while (s != -1) {
         int ns = -1;
         seen[s] = true;
+        order.push_back(s);
         for (int t = 0; t < feature.size(); ++t)
             if (not seen[t]) {
                 double tCost = std::max(cost[s], distance(s, t));
@@ -41,7 +43,6 @@ void OPF::train() {
             }
         s = ns;
     }
-    return;
 }
 
 void OPF::getPrototypes() {
@@ -70,10 +71,10 @@ void OPF::getPrototypes() {
     }
 }
 
-double OPF::distance(int i, int j) {
-    auto it1 = feature[i].begin(), it2 = feature[j].begin();
+double OPF::distance(const std::vector<int> &v1, const std::vector<int> &v2) {
+    auto it1 = v1.begin(), it2 = v2.begin();
     int cnt1 = 0, cnt2 = 0;
-    while (it1 != feature[i].end() and it2 != feature[j].end()) {
+    while (it1 != v1.end() and it2 != v2.end()) {
         if (*it1 == *it2) {
             ++it1;
             ++it2;
@@ -85,8 +86,23 @@ double OPF::distance(int i, int j) {
             ++cnt2;
         }
     }
-    cnt1 += feature[i].end() - it1;
-    cnt2 += feature[j].end() - it2;
+    cnt1 += v1.end() - it1;
+    cnt2 += v2.end() - it2;
     return double(cnt1 * cnt1 * cnt2 * cnt2) /
-            (feature[i].size() * feature[i].size() * feature[j].size() * feature[j].size());
+           (v1.size() * v1.size() * v2.size() * v2.size());
+}
+
+std::pair<int, double> OPF::classify(std::vector<int> vector) {
+    int label = 1;
+    double tCost = 1e300;
+    for (int s : order) {
+        if (cost[s] > tCost)
+            break;
+        double tmp = std::max(cost[s], distance(feature[s], vector));
+        if (tmp < tCost) {
+            tCost = tmp;
+            label = this->label[s];
+        }
+    }
+    return std::make_pair(label, tCost);
 }
