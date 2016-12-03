@@ -189,16 +189,17 @@ cv::Mat Detector::detect(cv::Mat target) {
     while (true) {
         int bestI = -1, bestJ = -1;
         double bestCost = 1e300;
-        auto points = getInterestPoints(target, mask, 0.2, 40);
+        auto points = getInterestPoints(target, mask, 0.35, 40);
         std::vector<SampleDescriptor::Patch> patches;
         for (auto p : points) {
             auto patch = target(cv::Rect(p.x - 6, p.y - 6, 13, 13));
             double bestSim = 0;
             int bestGroup = -1;
             for (int g = 0; g < patchGroup.size(); ++g) {
-                double sim = 1;
+                double sim = 0;
                 for (int x : patchGroup[g])
-                    sim = std::min(sim, patchSimilarity(patch, this->patches[x]));
+                    sim += patchSimilarity(patch, this->patches[x]);
+                sim /= patchGroup[g].size();
                 if (sim > bestSim) {
                     bestSim = sim;
                     bestGroup = g;
