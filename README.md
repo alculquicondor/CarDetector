@@ -1,1 +1,1 @@
-For an overview in Spanish, check this [slides](/alculquicondor/CarDetector/blob/master/CarDetection.pdf).
+For an overview in Spanish, check this [slides](/CarDetection.pdf).
