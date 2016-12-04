@@ -95,7 +95,7 @@ double OPF::distance(const std::vector<int> &v1, const std::vector<int> &v2) {
         t1 += score(*it1++);
     while (it2 != v2.end())
         t2 += score(*it2++);
-    return s1 *s1 * s2 * s2 / (t1 * t1 * t2 * t2);
+    return std::pow(s1 * s2 / (t1 * t2), 1.5);
 }
 
 std::pair<int, double> OPF::classify(std::vector<int> vector) {

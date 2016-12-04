@@ -6,6 +6,7 @@
 #define CARDETECTION_OPF_H
 
 #include <vector>
+#include <cmath>
 
 class OPF {
 private:

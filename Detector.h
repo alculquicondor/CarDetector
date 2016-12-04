@@ -42,8 +42,6 @@ private:
         return patchSimilarity(patches[i], patches[j]);
     }
 
-
-
     std::vector<int> buildFeatureVector(const SampleDescriptor &obj);
 
 public:
