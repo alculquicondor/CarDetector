@@ -26,13 +26,14 @@ private:
     std::vector<SampleDescriptor> positive;
     std::vector<SampleDescriptor> negative;
     std::vector<std::vector<int>> patchGroup;
+    std::vector<double> patchScore;
 
     std::vector<std::pair<int, std::vector<int>>> featVector;
 
     OPF opf;
 
     std::vector<cv::Point2i> getInterestPoints(const cv::Mat &src, const cv::Mat &mask,
-                                               double quality=0.36, int limit=10);
+                                               double quality=0.4, int limit=10);
     void savePatch(const cv::Mat &patch);
 
     double patchSimilarity(const cv::Mat &p1, const cv::Mat &p2);
@@ -47,8 +48,8 @@ private:
 
 public:
     Detector();
-    void addPositive(int id, const cv::Mat &src);
-    void addNegative(int id, const cv::Mat &src);
+    void getPatches(const cv::Mat &src, bool isCar);
+    void addSample(const cv::Mat &src, bool isCar);
     void groupPatches();
     void buildFeatureVectors();
     void trainClassifier();

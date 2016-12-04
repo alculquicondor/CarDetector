@@ -21,40 +21,56 @@ int main(int argc, char *argv[]) {
     Detector detector;
 
     auto startPoint = std::chrono::system_clock::now();
-
-    for (int i = 0; i < 550; ++i) {
+    for (int i = 0; i < 80; ++i) {
         std::stringstream filename;
         filename << dataRoot << "/TrainImages/pos-" << i << ".pgm";
         auto img = cv::imread(filename.str(), CV_LOAD_IMAGE_GRAYSCALE);
-        detector.addPositive(i, img);
+        detector.getPatches(img, true);
     }
-    for (int i = 0; i < 550; ++i) {
+    for (int i = 0; i < 80; ++i) {
         std::stringstream filename;
         filename << dataRoot << "/TrainImages/neg-" << i << ".pgm";
         auto img = cv::imread(filename.str(), CV_LOAD_IMAGE_GRAYSCALE);
-        detector.addNegative(i, img);
+        detector.getPatches(img, false);
     }
     auto endPoint = std::chrono::system_clock::now();
     std::chrono::duration<double> duration = endPoint - startPoint;
-    std::cout << "Patches obtained: " << (duration).count() << std::endl;
+    std::cout << "Patches obtained: " << duration.count() << std::endl;
 
     startPoint = std::chrono::system_clock::now();
     detector.groupPatches();
     endPoint = std::chrono::system_clock::now();
     duration = endPoint - startPoint;
-    std::cout << "Patches clustered: " << (duration).count() << std::endl;
+    std::cout << "Patches clustered: " << duration.count() << std::endl;
+
+    startPoint = std::chrono::system_clock::now();
+    for (int i = 0; i < 550; ++i) {
+        std::stringstream filename;
+        filename << dataRoot << "/TrainImages/pos-" << i << ".pgm";
+        auto img = cv::imread(filename.str(), CV_LOAD_IMAGE_GRAYSCALE);
+        detector.addSample(img, true);
+    }
+    for (int i = 0; i < 550; ++i) {
+        std::stringstream filename;
+        filename << dataRoot << "/TrainImages/neg-" << i << ".pgm";
+        auto img = cv::imread(filename.str(), CV_LOAD_IMAGE_GRAYSCALE);
+        detector.addSample(img, false);
+    }
+    endPoint = std::chrono::system_clock::now();
+    duration = endPoint - startPoint;
+    std::cout << "Loading samples: " << duration.count() << std::endl;
 
     startPoint = std::chrono::system_clock::now();
     detector.buildFeatureVectors();
     endPoint = std::chrono::system_clock::now();
     duration = endPoint - startPoint;
-    std::cout << "Feature Vectors obtained: " << (duration).count() << std::endl;
+    std::cout << "Feature Vectors obtained: " << duration.count() << std::endl;
 
     startPoint = std::chrono::system_clock::now();
     detector.trainClassifier();
     endPoint = std::chrono::system_clock::now();
     duration = endPoint - startPoint;
-    std::cout << "Trained classifier: " << (duration).count() << std::endl;
+    std::cout << "Trained classifier: " << duration.count() << std::endl;
 
     for (int i = 0; i < 170; ++i) {
         std::stringstream filename;

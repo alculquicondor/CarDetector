@@ -4,8 +4,8 @@
 
 #include "Detector.h"
 
-const int Detector::minPoints = 5;
-const double Detector::minSimilarity = 0.8;
+const int Detector::minPoints = 4;
+const double Detector::minSimilarity = 0.81;
 
 
 Detector::Detector() : carMask(cv::Mat::zeros(40, 100, CV_8UC1)) {
@@ -34,38 +34,20 @@ void Detector::savePatch(const cv::Mat &patch) {
 }
 
 
-void Detector::addPositive(int id, const cv::Mat &src) {
-    auto points = getInterestPoints(src, carMask);
-
-    if (points.size() >= minPoints) {
-        SampleDescriptor sample;
-        sample.id = id;
-        for (auto p : points) {
-            auto patch = src(cv::Rect(p.x - 6, p.y - 6, 13, 13));
-            sample.patches.push_back({(int) patches.size(), p.x, p.y});
-            savePatch(patch);
-        }
-        positive.push_back(sample);
+void Detector::getPatches(const cv::Mat &src, bool isCar) {
+    auto mask = carMask;
+    if (not isCar) {
+        mask = cv::Mat::zeros(src.size(), CV_8UC1);
+        cv::rectangle(mask, {7, 7}, {src.cols - 7, src.rows - 7}, {255}, -1);
     }
-}
-
-
-void Detector::addNegative(int id, const cv::Mat &src) {
-    cv::Mat mask = cv::Mat::zeros(src.size(), CV_8UC1);
-    cv::rectangle(mask, {7, 7}, {src.cols - 7, src.rows - 7}, {255}, -1);
     auto points = getInterestPoints(src, mask);
 
-    if (points.size() >= minPoints) {
-        SampleDescriptor sample;
-        sample.id = id;
-        for (auto p : points) {
-            auto patch = src(cv::Rect(p.x - 6, p.y - 6, 13, 13));
-            sample.patches.push_back({(int) patches.size(), p.x, p.y});
-            savePatch(patch);
-        }
-        negative.push_back(sample);
+    for (auto p : points) {
+        auto patch = src(cv::Rect(p.x - 6, p.y - 6, 13, 13));
+        savePatch(patch);
     }
 }
+
 
 double Detector::patchSimilarity(const cv::Mat &p1, const cv::Mat &p2) {
     cv::Mat extPatch;
@@ -105,14 +87,12 @@ void Detector::groupPatches() {
     }
 
     patchGroup.clear();
-    std::vector<int> patchGroupMap(patches.size());
     int gid = 0;
     for (const auto &group: ds.getSets())
         if (not group.empty()) {
             cv::Mat patchesMat;
             int pid = 0;
             for (int x : group) {
-                patchGroupMap[x] = (int) patchGroup.size();
                 if (pid > 0)
                     cv::hconcat(patchesMat, patches[x], patchesMat);
                 else
@@ -124,15 +104,45 @@ void Detector::groupPatches() {
             filename << "patchGroups/" << patchGroup.size() << ".pgm";
             cv::imwrite(filename.str(), patchesMat);
 
+            patchScore.push_back(1 / std::pow(group.size(), .2));
             patchGroup.push_back(group);
         }
-    for (auto &sample : positive)
-        for (auto &x : sample.patches)
-            x.id = patchGroupMap[x.id];
-    for (auto &sample : negative)
-        for (auto &x : sample.patches)
-            x.id = patchGroupMap[x.id];
 }
+
+
+void Detector::addSample(const cv::Mat &src, bool isCar) {
+    auto mask = carMask;
+    if (not isCar) {
+        mask = cv::Mat::zeros(src.size(), CV_8UC1);
+        cv::rectangle(mask, {7, 7}, {src.cols - 7, src.rows - 7}, {255}, -1);
+    }
+    auto points = getInterestPoints(src, mask, 0.3);
+    SampleDescriptor sample{-1};
+    for (auto p : points) {
+        auto patch = src(cv::Rect(p.x - 6, p.y - 6, 13, 13));
+        double bestSim = 0;
+        int bestGroup = -1;
+        for (int g = 0; g < patchGroup.size(); ++g) {
+            double sim = 0;
+            for (int x : patchGroup[g])
+                sim += patchSimilarity(patch, this->patches[x]);
+            sim /= patchGroup[g].size();
+            if (sim > bestSim) {
+                bestSim = sim;
+                bestGroup = g;
+            }
+        }
+        if (bestSim > minSimilarity)
+            sample.patches.push_back({bestGroup, p.x, p.y});
+    }
+    if (sample.patches.size() > minPoints) {
+        if (isCar)
+            positive.push_back(sample);
+        else
+            negative.push_back(sample);
+    }
+}
+
 
 std::vector<int> Detector::buildFeatureVector(const SampleDescriptor &obj) {
     static const double pi = 3.14159265359;
@@ -150,11 +160,12 @@ std::vector<int> Detector::buildFeatureVector(const SampleDescriptor &obj) {
             }
             double dist = std::hypot(dx, dy), angle = std::atan2(dy, dx) + .5 * pi;
             assert(angle >= 0 and angle <= pi);
-            int did = int(dist / 17), aid = int(3 * angle / pi);
+            int did = int(dist / 18), aid = int(3 * angle / pi);
             int p1 = obj.patches[i].id, p2 = obj.patches[j].id;
             assert(aid < 3);
-            assert(did < 6);
-            relations.push_back(int(p1 * patchGroup.size() + p2) * 18 + (did * 4) + aid);
+            if (did < 6) {
+                relations.push_back(int(p1 * patchGroup.size() + p2) * 18 + (did * 4) + aid);
+            }
         }
     }
     std::sort(patches.begin(), patches.end());
@@ -176,7 +187,7 @@ void Detector::buildFeatureVectors() {
 
 
 void Detector::trainClassifier() {
-    opf = OPF(featVector);
+    opf = OPF(featVector, patchScore);
     opf.train();
 }
 
@@ -189,7 +200,7 @@ cv::Mat Detector::detect(cv::Mat target) {
     while (true) {
         int bestI = -1, bestJ = -1;
         double bestCost = 1e300;
-        auto points = getInterestPoints(target, mask, 0.35, 40);
+        auto points = getInterestPoints(target, mask, 0.3, 40);
         std::vector<SampleDescriptor::Patch> patches;
         for (auto p : points) {
             auto patch = target(cv::Rect(p.x - 6, p.y - 6, 13, 13));
@@ -217,7 +228,7 @@ cv::Mat Detector::detect(cv::Mat target) {
                     if (p.x > j + 6 and p.x < j + carMask.cols - 6 and
                             p.y > i + 6 and p.y < i + carMask.rows - 6)
                         sample.patches.push_back(p);
-                if (sample.patches.size() >= minPoints - 1) {
+                if (sample.patches.size() >= minPoints) {
                     auto classification = opf.classify(buildFeatureVector(sample));
                     if (classification.first == 1 and classification.second < bestCost) {
                         bestCost = classification.second;
@@ -227,13 +238,15 @@ cv::Mat Detector::detect(cv::Mat target) {
                 }
             }
         }
-        if (bestI != -1 and bestCost < 0.65) {
-            cv::rectangle(output, {bestJ, bestI}, {bestJ + carMask.cols, bestI + carMask.rows}, {255});
-            carMask.copyTo(target.rowRange(bestI, bestI + carMask.rows).colRange(bestJ, bestJ + carMask.cols));
-            std::cout << bestCost << std::endl;
-        } else {
-            break;
+        if (bestI != -1) {
+            cv::rectangle(target, {bestJ, bestI}, {bestJ + carMask.cols, bestI + carMask.rows}, {255}, -1);
+            if (bestCost < 0.6) {
+                cv::rectangle(output, {bestJ, bestI}, {bestJ + carMask.cols, bestI + carMask.rows}, {255});
+                std::cout << bestCost << std::endl;
+                continue;
+            }
         }
+        break;
     }
     return output;
 }

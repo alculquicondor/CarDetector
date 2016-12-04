@@ -4,7 +4,8 @@
 
 #include "OPF.h"
 
-OPF::OPF(std::vector<std::pair<int, std::vector<int>>> features) {
+OPF::OPF(std::vector<std::pair<int, std::vector<int>>> features, std::vector<double> featScore) :
+        featScore(featScore) {
     for (auto &p : features) {
         label.push_back(p.first);
         feature.push_back(p.second);
@@ -73,23 +74,28 @@ void OPF::getPrototypes() {
 
 double OPF::distance(const std::vector<int> &v1, const std::vector<int> &v2) {
     auto it1 = v1.begin(), it2 = v2.begin();
-    int cnt1 = 0, cnt2 = 0;
+    double s1 = 0, s2 = 0, t1 = 0, t2 = 0;
     while (it1 != v1.end() and it2 != v2.end()) {
         if (*it1 == *it2) {
+            t1 += score(*it1);
+            t2 += score(*it2);
             ++it1;
             ++it2;
         } else if (*it1 < *it2) {
+            s1 += score(*it1);
+            t1 += score(*it1);
             ++it1;
-            ++cnt1;
         } else {
+            s2 += score(*it1);
+            t2 += score(*it1);
             ++it2;
-            ++cnt2;
         }
     }
-    cnt1 += v1.end() - it1;
-    cnt2 += v2.end() - it2;
-    return double(cnt1 * cnt1 * cnt2 * cnt2) /
-           (v1.size() * v1.size() * v2.size() * v2.size());
+    while (it1 != v1.end())
+        t1 += score(*it1++);
+    while (it2 != v2.end())
+        t2 += score(*it2++);
+    return s1 *s1 * s2 * s2 / (t1 * t1 * t2 * t2);
 }
 
 std::pair<int, double> OPF::classify(std::vector<int> vector) {

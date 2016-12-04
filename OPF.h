@@ -9,6 +9,7 @@
 
 class OPF {
 private:
+    std::vector<double> featScore;
     std::vector<int> label;
     std::vector<std::vector<int>> feature;
     std::vector<double> cost;
@@ -17,6 +18,10 @@ private:
     std::vector<bool> seen;
     std::vector<int> order;
 
+    double score(int id) {
+        return id < featScore.size() ? featScore[id] : 1;
+    }
+
     void getPrototypes();
     double distance(const std::vector<int> &v1, const std::vector<int> &v2);
     double distance(int i, int j) {
@@ -24,7 +29,7 @@ private:
     }
 public:
     OPF() {}
-    OPF(std::vector<std::pair<int, std::vector<int>>> features);
+    OPF(std::vector<std::pair<int, std::vector<int>>> features, std::vector<double> featScore);
 
     void train();
 
